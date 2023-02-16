@@ -5,12 +5,12 @@ import time
 import os
 import sqlite3
 import store_db as sdb
-from store_db import add_game, get_games, del_game
+from store_db import add_game, get_games, del_game, get_library_games, add_library_game, get_library_games_all_data
 import add_money
 import matplotlib.pyplot as mlt
 import numpy as nmpi
 
-TEMPORARY_USER_ID = 0 # TEMPORARY
+addMoneyCanvasLabel = None
 
 # balance needed for add money
 
@@ -19,24 +19,32 @@ GAMES = [
     {
         "id": 0,
         "name": "Stardew Valley",
+        "publisher": "ConcernedApe",
+        "tag": "Game / Entertainment",
         "price": 419.95,
         "image": "./asset/app_images/libraryitem1.png",
     },
     {
         "id": 1,
         "name": "Wallpaper Engine",
+        "publisher": "Wallpaper Engine Team",
+        "tag": "Software Utility",
         "price": 135.95,
         "image": "./asset/app_images/libraryitem2.png",
     },
     {
         "id": 2,
         "name": "Kingdom Rush: Origins",
+        "publisher": "",
+        "tag": "",
         "price": 2300.0,
         "image": "./asset/app_images/libraryitem3.png",
     },
     {
         "id": 3,
         "name": "Plaque Inc.",
+        "publisher": "",
+        "tag": "",
         "price": 301.46,
         "image": "./asset/app_images/libraryitem4.png",
     }
@@ -142,6 +150,7 @@ def main_app():
                 addMoneyCanvasLabel.delete("balance_tag")
                 addMoneyCanvasLabel.create_text((60, 20), text=f"₱ {add_money.get_balance(add_money.get_misc_user())}", font=('Inter', 12), fill="white", tag="balance_tag")   
                 addMoneyWindow.destroy()
+                update_summary()
                           
             
 
@@ -221,6 +230,40 @@ def main_app():
         cashCancelButton = Button(cashButtonFrame, text="Cancel", font=('Inter', 12), fg="white", bg="#232F3E", bd=0, width=9, cursor="hand2", command=cancel_clicked)
         cashCancelButton.grid(row=0, column=1)
 
+    def get_users_cart_games(username):
+        game_ids_in_cart = get_games(username)
+
+        result = []
+
+        for game_id in game_ids_in_cart:
+            games = [game for game in GAMES if game["id"] == game_id]
+
+            if len(games) > 0:
+                result.append(games[0])
+
+        return result
+    
+    def get_users_library_games(username):
+        game_ids_in_cart = get_library_games(username)
+
+        result = []
+
+        for game_id in game_ids_in_cart:
+            games = [game for game in GAMES if game["id"] == game_id]
+
+            if len(games) > 0:
+                result.append(games[0])
+
+        return result
+    
+    def is_game_already_owned(game_id):
+        games = get_users_library_games(add_money.get_misc_user())
+
+        for game in games:
+            if game["id"] == game_id:
+                return True
+
+        return False
 
     def example_add_function(game_id):
         pop_up_screen = Toplevel(mainWindow)
@@ -229,13 +272,18 @@ def main_app():
         pop_up_screen.configure(bg="#192334")
         pop_up_screen.resizable(False, False)
 
+        is_owned = is_game_already_owned(game_id)
 
-        message = "Add Cart Succesfully!"
-        try:
-            add_game(game_id, TEMPORARY_USER_ID)
-        except Exception as e:
-            message = "Already in your cart"
-            print(e)
+        message = "Added to Cart Succesfully!"
+
+        if is_owned:
+            message = "Already in your library"
+        else:
+            try:
+                add_game(game_id, add_money.get_misc_user())
+            except Exception as e:
+                message = "Already in your cart"
+                print(e)
 
         update_item_list()
         Label(pop_up_screen, text=message, font=('Inter 10'), fg='#ffffff', bg="#192334").place(x=30, y=15)
@@ -243,11 +291,23 @@ def main_app():
                             border=0, cursor="hand2", command=lambda: pop_up_screen.destroy()).place(x=60, y=50)
         
     def showGraph(event):
-        graphMonths = nmpi.array(['November', 'December', 'January', 'Current'])
-        graphValues = nmpi.array([1230,410,676,0])
 
-        mlt.title("Your purchase value for the past few months")
-        mlt.xlabel("Months")
+        games_in_library = get_library_games_all_data(add_money.get_misc_user())
+
+        result = []
+
+
+        for game in games_in_library:
+            games = [x for x in GAMES if x["id"] == game[1]]
+
+            if len(games) > 0:
+                result.append(game)
+
+        graphMonths = nmpi.array([game[3][:-7] for game in result])
+        graphValues = nmpi.array([game[2] for game in result])
+
+        mlt.title("Your purchase value")
+        # mlt.xlabel("Months")
         mlt.ylabel("Total Expenses")
 
         mlt.bar(graphMonths, graphValues)
@@ -256,7 +316,7 @@ def main_app():
     #When trash clicked
     def removeItem(event):
         for game_id in selected_game_ids:
-            del_game(game_id, TEMPORARY_USER_ID)
+            del_game(game_id, add_money.get_misc_user())
 
         update_item_list()
         print("Item Removed")
@@ -277,6 +337,17 @@ def main_app():
                 x+=1
                 progressWindow.update()
             progressWindow.destroy()
+
+            for game in get_users_cart_games(add_money.get_misc_user()):
+                add_library_game(game["id"], add_money.get_misc_user(), game["price"])
+                del_game(game["id"], add_money.get_misc_user())
+                add_money.remove_credits(add_money.get_misc_user(), game["price"], "")
+                
+
+            update_library()
+            update_item_list()
+            update_games_in_store()
+            update_account_frame()
             
         def on_closing():
             pass
@@ -371,16 +442,23 @@ def main_app():
     accountFrame = Frame(tabFrame, bg="#101723")
     accountFrame.grid(row=0, column=3, padx=20, pady=0, sticky=NE, columnspan=2)
 
-    accountCanvasLabel = Canvas(accountFrame, width=120, height=35, bg="#101723", highlightthickness=0, cursor="hand2")
-    accountCanvasLabel.pack(side=TOP)
-    account_label = accountCanvasLabel.create_text((60, 20), text="Account", font=('Inter', 20), fill="white")
-    accountCanvasLabel.bind('<Button-1>', openAccount)
+    def update_account_frame():
+        global addMoneyCanvasLabel
+        for child in accountFrame.winfo_children():
+            child.destroy()
 
-    addMoneyCanvasLabel = Canvas(accountFrame, width=120, height=35, bg="#101723", highlightthickness=0, cursor="hand2")
-    addMoneyCanvasLabel.pack(side=TOP)
-    addMoneyCanvasLabel.create_image((60,20), image=addmoneybg)
-    addMoneyCanvasLabel.create_text((60, 20), text=f"₱ {add_money.get_balance(add_money.get_misc_user())}", font=('Inter', 12), fill="white", tag="balance_tag")
-    addMoneyCanvasLabel.bind('<Button-1>', addMoney)
+        accountCanvasLabel = Canvas(accountFrame, width=120, height=35, bg="#101723", highlightthickness=0, cursor="hand2")
+        accountCanvasLabel.pack(side=TOP)
+        account_label = accountCanvasLabel.create_text((60, 20), text="Account", font=('Inter', 20), fill="white")
+        accountCanvasLabel.bind('<Button-1>', openAccount)
+
+        addMoneyCanvasLabel = Canvas(accountFrame, width=120, height=35, bg="#101723", highlightthickness=0, cursor="hand2")
+        addMoneyCanvasLabel.pack(side=TOP)
+        addMoneyCanvasLabel.create_image((60,20), image=addmoneybg)
+        addMoneyCanvasLabel.create_text((60, 20), text=f"₱ {round(add_money.get_balance(add_money.get_misc_user()), 2)}", font=('Inter', 12), fill="white", tag="balance_tag")
+        addMoneyCanvasLabel.bind('<Button-1>', addMoney)
+
+    update_account_frame()
 
 
     #Library Body-----------------------------------------------
@@ -406,63 +484,99 @@ def main_app():
     libraryBGLabel.place(x=0, y=0)
     libraryBGLabel.bind("<Configure>", checkScrollbar)
 
-    #-----Library App Owned Sample 1-----
-    appLibraryFrame1 = Frame(libraryFrame, height=120, bg="#101723")
-    appLibraryFrame1.pack(fill=X, padx=20, pady=20)
+    def update_library():
 
-    #Blue-ish background of each individual app
-    appBGLabel = Label(appLibraryFrame1, image=appFrameBg, bd=0, bg="#192334")
-    appBGLabel.place(x=0, y=0)
+        for child in libraryFrame.winfo_children():
+            child.destroy()
 
-    #Groups App photo, App name, and Developer Name to be displayed on the left section
-    appLeftSectionFrame1 = Frame(appLibraryFrame1, bg="#232F3E")
-    appLeftSectionFrame1.pack(side=LEFT)
+        for game in get_users_library_games(add_money.get_misc_user()):
+            #-----Library App Owned Sample 1-----
+            appLibraryFrame1 = Frame(libraryFrame, height=120, bg="#101723")
+            appLibraryFrame1.pack(fill=X, padx=20, pady=20)
 
-    appPhotoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
-    appPhotoFrame.pack(side=LEFT)
-    appPhotoLabel1 = Label(appPhotoFrame, image=libraryItemPhoto1, bg="#232F3E", width=120, height=120, bd=0)
-    appPhotoLabel1.pack()
+            #Blue-ish background of each individual app
+            appBGLabel = Label(appLibraryFrame1, image=appFrameBg, bd=0, bg="#192334")
+            appBGLabel.place(x=0, y=0)
 
-    #Groups App name and Developer name displayed top to bottom
-    appInfoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
-    appInfoFrame.pack(side=LEFT)
+            #Groups App photo, App name, and Developer Name to be displayed on the left section
+            appLeftSectionFrame1 = Frame(appLibraryFrame1, bg="#232F3E")
+            appLeftSectionFrame1.pack(side=LEFT)
 
-    #Labels for App Name, Developer Name, App Type
-    appNameLabel1 = Label(appInfoFrame, text="Stardew Valley", bg="#232F3E", font=('Inter', 22, 'bold'), fg="white")
-    appNameLabel1.grid(row=0, column=1, padx=10, sticky=W)
-    appDevLabel1 = Label(appInfoFrame, text="ConcernedApe", bg="#232F3E", font=('Inter', 14), fg="white")
-    appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
-    appTypeLabel1 = Label(appLibraryFrame1, text="Game / Entertainment", bg="#232F3E", font=('Inter', 14), fg="white")
-    appTypeLabel1.pack(side=RIGHT, padx=20)
+            appPhotoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+            appPhotoFrame.pack(side=LEFT)
+            appPhotoLabel1 = Label(appPhotoFrame, image=game["image"], bg="#232F3E", width=120, height=120, bd=0)
+            appPhotoLabel1.pack()
 
-    #-----Library App Owned Sample 2-----
-    appLibraryFrame1 = Frame(libraryFrame, height=120, bg="#101723")
-    appLibraryFrame1.pack(fill=X, padx=20, pady=20)
+            #Groups App name and Developer name displayed top to bottom
+            appInfoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+            appInfoFrame.pack(side=LEFT)
 
-    #Blue-ish background of each individual app
-    appBGLabel = Label(appLibraryFrame1, image=appFrameBg, bd=0, bg="#192334")
-    appBGLabel.place(x=0, y=0)
+            #Labels for App Name, Developer Name, App Type
+            appNameLabel1 = Label(appInfoFrame, text=game["name"], bg="#232F3E", font=('Inter', 22, 'bold'), fg="white")
+            appNameLabel1.grid(row=0, column=1, padx=10, sticky=W)
+            appDevLabel1 = Label(appInfoFrame, text=game["publisher"], bg="#232F3E", font=('Inter', 14), fg="white")
+            appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
+            appTypeLabel1 = Label(appLibraryFrame1, text=game["tag"], bg="#232F3E", font=('Inter', 14), fg="white")
+            appTypeLabel1.pack(side=RIGHT, padx=20)
 
-    #Groups App photo, App name, and Developer Name to be displayed on the left section
-    appLeftSectionFrame1 = Frame(appLibraryFrame1, bg="#232F3E")
-    appLeftSectionFrame1.pack(side=LEFT)
+    update_library()
+    # #-----Library App Owned Sample 1-----
+    # appLibraryFrame1 = Frame(libraryFrame, height=120, bg="#101723")
+    # appLibraryFrame1.pack(fill=X, padx=20, pady=20)
 
-    appPhotoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
-    appPhotoFrame.pack(side=LEFT)
-    appPhotoLabel1 = Label(appPhotoFrame, image=libraryItemPhoto2, bg="#232F3E", width=120, height=120, bd=0)
-    appPhotoLabel1.pack()
+    # #Blue-ish background of each individual app
+    # appBGLabel = Label(appLibraryFrame1, image=appFrameBg, bd=0, bg="#192334")
+    # appBGLabel.place(x=0, y=0)
 
-    #Groups App name and Developer name displayed top to bottom
-    appInfoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
-    appInfoFrame.pack(side=LEFT)
+    # #Groups App photo, App name, and Developer Name to be displayed on the left section
+    # appLeftSectionFrame1 = Frame(appLibraryFrame1, bg="#232F3E")
+    # appLeftSectionFrame1.pack(side=LEFT)
 
-    #Labels for App Name, Developer Name, App Type
-    appNameLabel1 = Label(appInfoFrame, text="Wallpaper Engine", bg="#232F3E", font=('Inter', 22, 'bold'), fg="white")
-    appNameLabel1.grid(row=0, column=1, padx=10, sticky=W)
-    appDevLabel1 = Label(appInfoFrame, text="Wallpaper Engine Team", bg="#232F3E", font=('Inter', 14), fg="white")
-    appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
-    appTypeLabel1 = Label(appLibraryFrame1, text="Software Utility", bg="#232F3E", font=('Inter', 14), fg="white")
-    appTypeLabel1.pack(side=RIGHT, padx=20)
+    # appPhotoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+    # appPhotoFrame.pack(side=LEFT)
+    # appPhotoLabel1 = Label(appPhotoFrame, image=libraryItemPhoto1, bg="#232F3E", width=120, height=120, bd=0)
+    # appPhotoLabel1.pack()
+
+    # #Groups App name and Developer name displayed top to bottom
+    # appInfoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+    # appInfoFrame.pack(side=LEFT)
+
+    # #Labels for App Name, Developer Name, App Type
+    # appNameLabel1 = Label(appInfoFrame, text="Stardew Valley", bg="#232F3E", font=('Inter', 22, 'bold'), fg="white")
+    # appNameLabel1.grid(row=0, column=1, padx=10, sticky=W)
+    # appDevLabel1 = Label(appInfoFrame, text="ConcernedApe", bg="#232F3E", font=('Inter', 14), fg="white")
+    # appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
+    # appTypeLabel1 = Label(appLibraryFrame1, text="Game / Entertainment", bg="#232F3E", font=('Inter', 14), fg="white")
+    # appTypeLabel1.pack(side=RIGHT, padx=20)
+
+    # #-----Library App Owned Sample 2-----
+    # appLibraryFrame1 = Frame(libraryFrame, height=120, bg="#101723")
+    # appLibraryFrame1.pack(fill=X, padx=20, pady=20)
+
+    # #Blue-ish background of each individual app
+    # appBGLabel = Label(appLibraryFrame1, image=appFrameBg, bd=0, bg="#192334")
+    # appBGLabel.place(x=0, y=0)
+
+    # #Groups App photo, App name, and Developer Name to be displayed on the left section
+    # appLeftSectionFrame1 = Frame(appLibraryFrame1, bg="#232F3E")
+    # appLeftSectionFrame1.pack(side=LEFT)
+
+    # appPhotoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+    # appPhotoFrame.pack(side=LEFT)
+    # appPhotoLabel1 = Label(appPhotoFrame, image=libraryItemPhoto2, bg="#232F3E", width=120, height=120, bd=0)
+    # appPhotoLabel1.pack()
+
+    # #Groups App name and Developer name displayed top to bottom
+    # appInfoFrame = Frame(appLeftSectionFrame1, bg="#232F3E")
+    # appInfoFrame.pack(side=LEFT)
+
+    # #Labels for App Name, Developer Name, App Type
+    # appNameLabel1 = Label(appInfoFrame, text="Wallpaper Engine", bg="#232F3E", font=('Inter', 22, 'bold'), fg="white")
+    # appNameLabel1.grid(row=0, column=1, padx=10, sticky=W)
+    # appDevLabel1 = Label(appInfoFrame, text="Wallpaper Engine Team", bg="#232F3E", font=('Inter', 14), fg="white")
+    # appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
+    # appTypeLabel1 = Label(appLibraryFrame1, text="Software Utility", bg="#232F3E", font=('Inter', 14), fg="white")
+    # appTypeLabel1.pack(side=RIGHT, padx=20)
 
     #Store Body -------------------------------------------------------------------------------------------------------
 
@@ -485,18 +599,33 @@ def main_app():
         app_storeInfoFrame = Frame(appstoreFrame1, bg="#232F3E")
         app_storeInfoFrame.grid(column=column, row=row, padx=30, pady=10)
 
+
         gameImage = Label(app_storeInfoFrame, image=game["image"], bg="#232F3E")
         gameImage.grid(column=0, row=0, sticky=N)
         gamelabel = Label(app_storeInfoFrame, text=game["name"], bg="#232F3E", font=('Inter', 12, 'bold'), fg="white")
         gamelabel.grid(column=0, row=1, sticky=N)
         appDevLabel1 = Label(app_storeInfoFrame, text="ConcernedApe", bg="#232F3E", font=('Inter', 10), fg="white")
         appDevLabel1.grid(column=0, row=2, sticky=S)
-        gameButton = Button(app_storeInfoFrame, width=8, pady=1, text=game["price"], bg='#101723', font=('Inter 10'), fg='#ffffff',
-                            border=0, cursor="hand2", command=lambda : example_add_function(game["id"]))
-        gameButton.grid(column=0, row=3, sticky=S, pady=10)
+        is_owned = is_game_already_owned(game["id"])
 
-    for index, game in enumerate(GAMES):
-        create_game_in_store(game, index)
+        if not is_owned:
+            gameButton = Button(app_storeInfoFrame, width=8, pady=1, text=game["price"], bg='#101723', font=('Inter 10'), fg='#ffffff',
+                            border=0, cursor="hand2", command=lambda : example_add_function(game["id"]))
+            gameButton.grid(column=0, row=3, sticky=S, pady=10)
+        else:
+            gameButton = Button(app_storeInfoFrame, width=8, pady=1, text="In Library", bg='#101723', font=('Inter 10'), fg='#ffffff',
+                            border=0, cursor="hand2", command=lambda : example_add_function(game["id"]))
+            gameButton.grid(column=0, row=3, sticky=S, pady=10)
+
+    
+    def update_games_in_store():
+        for child in appstoreFrame1.winfo_children():
+            child.destroy()
+
+        for index, game in enumerate(GAMES):
+            create_game_in_store(game, index)
+
+    update_games_in_store()
 
     # #store frame box1 and grouping- StardewValley
     # appstoreBGLabel1 = Label(appstoreFrame1, image=appstore_framebg, bd=0, bg="#192334")
@@ -627,23 +756,44 @@ def main_app():
 
     tree.bind("<ButtonRelease-1>", on_double_click)
 
+    def update_summary():
+        balance = float(add_money.get_balance(add_money.get_misc_user()))
+
+        yourFundsVar.set(str(round(balance, 2)))
+
+        totalPayment = 0
+
+        for game in get_users_cart_games(add_money.get_misc_user()):
+            totalPayment += game["price"]
+
+        totalPaymentVar.set(str(round(totalPayment, 2)))
+        fundsLeft = balance - totalPayment;
+        fundsLeftVar.set(str(round(fundsLeft, 2)))
+
+        if fundsLeft >= 0:
+            cartActualResultFundLabel.config(fg= "white")
+            cartBuyButton.pack(anchor=E, pady=(30,0))
+        else:
+            cartActualResultFundLabel.config(fg= "red")
+            cartBuyButton.pack_forget()
+
+
+
+
+
+
     #Sample List Data
     def update_item_list():
         for item in tree.get_children():
             tree.delete(item)
 
-        game_ids_in_cart = get_games(TEMPORARY_USER_ID)
-
         index = 0
-        for game_id in game_ids_in_cart:
-            games = [game for game in GAMES if game["id"] == game_id]
+        for game in get_users_cart_games(add_money.get_misc_user()):
+            tree.insert('', 'end', text=str(index + 1), values=(game["name"], game["price"], game["id"]))
+            index += 1
 
-            if len(games) > 0:
-                game = games[0]
-                tree.insert('', 'end', text=str(index + 1), values=(game["name"], game["price"], game_id))
-                index += 1
+        update_summary()
 
-    update_item_list()
     # tree.insert('', 'end',text= "1",values=('Stardew Valley','419.95'))
     # tree.insert('', 'end',text= "2",values=('Wallpaper Engine', '135.95'))
     # tree.insert('', 'end',text= "3",values=('Kingdom Rush: Origins', '2,300.00'))
@@ -662,6 +812,7 @@ def main_app():
     cartDetailLeftFrame = Frame(cartDetailFrame, bg="#192334")
     cartDetailLeftFrame.pack(side=LEFT, fill=X, padx=(0,80))
 
+
     cartCurrentFundLabel = Label(cartDetailLeftFrame, text="Your funds", font=('Inter', 12), fg="white", bg="#192334")
     cartCurrentFundLabel.pack(anchor=W, pady=(2,0))
 
@@ -674,8 +825,9 @@ def main_app():
     cartDetailRightFrame = Frame(cartDetailFrame, bg="#192334")
     cartDetailRightFrame.pack(side=RIGHT, fill=X)
 
+    yourFundsVar = StringVar()
     #Fund Label
-    cartActualCurrentFundLabel = Label(cartDetailRightFrame, text="3225.01", font=('Inter', 15), fg="white", bg="#192334")
+    cartActualCurrentFundLabel = Label(cartDetailRightFrame, textvariable=yourFundsVar, font=('Inter', 15), fg="white", bg="#192334")
     cartActualCurrentFundLabel.pack(anchor=E)
 
     #Frame for the minus sign
@@ -686,8 +838,9 @@ def main_app():
     minusCanvas.create_line(0,0,0,10, fill="white")
     minusCanvas.pack(side=LEFT, anchor=W, padx=(0, 84))
 
+    totalPaymentVar = StringVar()
     #Total Label
-    cartActualTotalLabel = Label(minusSignFrame, text="1256.99", font=('Inter', 15), fg="white", bg="#192334")
+    cartActualTotalLabel = Label(minusSignFrame, textvariable=totalPaymentVar, font=('Inter', 15), fg="white", bg="#192334")
     cartActualTotalLabel.pack(side=RIGHT, anchor=E)
 
     lineCanvas = Canvas(cartDetailRightFrame, height=1, width=175)
@@ -695,13 +848,15 @@ def main_app():
     lineCanvas.pack(anchor=E, pady=(3,3))
 
     #Funds Result Label
-    cartActualResultFundLabel = Label(cartDetailRightFrame, text="1968.02", font=('Inter', 15), fg="white", bg="#192334")
+    fundsLeftVar = StringVar()
+    cartActualResultFundLabel = Label(cartDetailRightFrame, textvariable=fundsLeftVar, font=('Inter', 15), fg="white", bg="#192334")
     cartActualResultFundLabel.pack(anchor=E)
 
     cartBuyButton = Button(cartRightFrame, text="Complete Transaction", font=('Inter', 12), fg="#101723", bg="white", bd=0, width=18, cursor="hand2", command=buyCart)
     cartBuyButton.pack(anchor=E, pady=(30,0))
 
 
+    update_item_list()
     mainWindow.mainloop()
     
 def nodef():

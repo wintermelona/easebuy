@@ -4,7 +4,7 @@ import random
 create_wallet_table_query = '''
 CREATE TABLE IF NOT EXISTS "wallet" (
 	"username"	TEXT NOT NULL UNIQUE,
-	"balance"	INTEGER NOT NULL DEFAULT 0,
+	"balance"	FLOAT NOT NULL DEFAULT 0,
 	PRIMARY KEY("username")
 );
 '''
@@ -12,8 +12,15 @@ CREATE TABLE IF NOT EXISTS "wallet" (
 create_pins_table_query = '''
 CREATE TABLE IF NOT EXISTS "pins" (
 	"pin"	TEXT NOT NULL,
-	"value"	INTEGER NOT NULL,
+	"value"	FLOAT NOT NULL,
 	PRIMARY KEY("pin")
+);
+'''
+
+create_misc_table_query = '''
+CREATE TABLE IF NOT EXISTS "misc" (
+	"username"	TEXT NOT NULL UNIQUE,
+	PRIMARY KEY("username")
 );
 '''
 
@@ -129,7 +136,7 @@ def add_credits(username, value, pin):
     # update balance by amount value
     value_update_query = f'''
     UPDATE wallet
-    SET balance = {balance + int(float(value))}
+    SET balance = {balance + float(value)}
     WHERE username = '{username}';
     '''
     c.execute(value_update_query)
@@ -165,11 +172,31 @@ def add_credits(username, value, pin):
     """
     conn.close()    
 
+def remove_credits(username, value, pin):
+    conn = sqlite3.connect('appstore.db')
+    c = conn.cursor()    
+    
+    # get current balance 
+    balance = get_balance(username)
+
+    if (not value):
+        value = 0
+    if (not pin):
+        pin = ' '
+    
+    # update balance by amount value
+    value_update_query = f'''
+    UPDATE wallet
+    SET balance = {balance - float(value)}
+    WHERE username = '{username}';
+    '''
+    c.execute(value_update_query)
+    conn.commit()
 
 
-
-#create_table(create_wallet_table_query)
-#create_table(create_pins_table_query)
+create_table(create_wallet_table_query)
+create_table(create_pins_table_query)
+create_table(create_misc_table_query)
 #initialize_user_balance()
 #print(get_balance('admin'))
 #generate_pins()
