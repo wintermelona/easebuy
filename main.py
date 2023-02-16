@@ -390,7 +390,8 @@ def main_app():
     libraryItemPhoto4 = PhotoImage(file="./asset/app_images/libraryitem4.png")
 
     for game in GAMES:
-        game["image"] = PhotoImage(file=game["image"])
+        if type (game["image"]) == str:
+            game["image"] = PhotoImage(file=game["image"])
 
     appFrameBg = PhotoImage(file="./asset/applibrarybg.png")
     librarybg = PhotoImage(file="./asset/librarybg.png")
