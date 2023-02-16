@@ -36,16 +36,16 @@ def main_app():
     {
         "id": 2,
         "name": "Kingdom Rush: Origins",
-        "publisher": "",
-        "tag": "",
+        "publisher": "Ironhide Game Studio",
+        "tag": "Game / Entertainment",
         "price": 2300.0,
         "image": "./asset/app_images/libraryitem3.png",
     },
     {
         "id": 3,
         "name": "Plaque Inc.",
-        "publisher": "",
-        "tag": "",
+        "publisher": "Ndemic Creations",
+        "tag": "Game / Entertainment",
         "price": 301.46,
         "image": "./asset/app_images/libraryitem4.png",
     }
@@ -58,6 +58,7 @@ def main_app():
         cartCanvasLabel.itemconfig(cart_label, image=cart_gray)
         libraryCanvas.pack(side="left", fill=BOTH, expand=True)
         libraryCanvasLabel.itemconfig(lib_label, font="Inter 28 underline", fill="#FFFFFF")
+        update_library()
 
     #Go to store page
     def displayStore(event):
@@ -67,6 +68,7 @@ def main_app():
         cartCanvasLabel.itemconfig(cart_label, image=cart_gray)
         storeFrame.pack(fill=BOTH, expand=True)
         storeCanvasLabel.itemconfig(store_label, font="Inter 28 underline", fill="#FFFFFF")
+        scrollbar.pack_forget()
         
     #Go to cart page
     def displayCart(event):
@@ -76,6 +78,7 @@ def main_app():
         storeCanvasLabel.itemconfig(store_label, font="Inter 28", fill="#969696")
         cartFrame.pack(fill=BOTH, expand=True)
         cartCanvasLabel.itemconfig(cart_label, image=cart_white)
+        scrollbar.pack_forget()
 
     #Logging out
     def openAccount(event):
@@ -477,7 +480,7 @@ def main_app():
     
     def update_library():
         global appCount
-        
+        appCount = 0
         for child in libraryFrame.winfo_children():
             child.destroy()
         
@@ -581,7 +584,6 @@ def main_app():
     storeFrame = Frame(bodyFrame, bg="#192334")
     storeBGLabel = Label(storeFrame, image=store_framebg, bd=0, bg="#101723")
     storeBGLabel.place(x=0, y=0)
-    storeBGLabel.bind("<Configure>", checkScrollbar)
 
     #store container
     appstoreFrame1 = Frame(storeFrame, height=400, bg="#192334")
@@ -712,7 +714,7 @@ def main_app():
     cartLeftHeaderLabel.pack(side=LEFT)
 
     trashCanvasLabel = Canvas(cartLeftHeaderFrame, width=40, height=40, bg="#192334", highlightthickness=0, cursor="hand2")
-    trashCanvasLabel.pack(anchor=E)
+    trashCanvasLabel.pack(side=RIGHT, anchor=E)
     trash_label = trashCanvasLabel.create_image((20,20), image=trash_icon)
     trashCanvasLabel.bind('<Button-1>', removeItem)
 
@@ -773,6 +775,9 @@ def main_app():
             cartBuyButton.pack(anchor=E, pady=(30,0))
         else:
             cartActualResultFundLabel.config(fg= "red")
+            cartBuyButton.pack_forget()
+            
+        if fundsLeft == balance:
             cartBuyButton.pack_forget()
 
 
