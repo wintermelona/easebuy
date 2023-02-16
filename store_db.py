@@ -39,4 +39,3 @@ def get_games(user_id):
     conn.commit()
 
     return result
-
