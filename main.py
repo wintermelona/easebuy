@@ -12,10 +12,11 @@ import numpy as nmpi
 
 addMoneyCanvasLabel = None
 
-# balance needed for add money
+selected_game_ids = []
+appCount = 0
 
-# TEMPORARY
-GAMES = [
+def main_app():
+    GAMES = [
     {
         "id": 0,
         "name": "Stardew Valley",
@@ -49,11 +50,6 @@ GAMES = [
         "image": "./asset/app_images/libraryitem4.png",
     }
 ]
-
-selected_game_ids = []
-
-
-def main_app():
     #Go to library page
     def displayLibrary(event):
         storeFrame.pack_forget()
@@ -403,7 +399,6 @@ def main_app():
 
 
     #Display scrollbar when needed
-    appCount = 0
     def checkScrollbar(event):
         #global appCount
         if appCount>=4:
@@ -479,16 +474,17 @@ def main_app():
     libraryCanvas.configure(yscrollcommand=scrollbar.set)
 
     libraryCanvas.pack(side="left", fill="both", expand=True)
-
-    #Library Background
-    libraryBGLabel = Label(libraryFrame, image=librarybg, bd=0, bg="#101723")
-    libraryBGLabel.place(x=0, y=0)
-    libraryBGLabel.bind("<Configure>", checkScrollbar)
-
+    
     def update_library():
-
+        global appCount
+        
         for child in libraryFrame.winfo_children():
             child.destroy()
+        
+        #Library Background
+        libraryBGLabel = Label(libraryFrame, image=librarybg, bd=0, bg="#101723")
+        libraryBGLabel.place(x=0, y=0)
+        libraryBGLabel.bind("<Configure>", checkScrollbar)
 
         for game in get_users_library_games(add_money.get_misc_user()):
             #-----Library App Owned Sample 1-----
@@ -519,6 +515,7 @@ def main_app():
             appDevLabel1.grid(row=1, column=1, padx=12, sticky=W)
             appTypeLabel1 = Label(appLibraryFrame1, text=game["tag"], bg="#232F3E", font=('Inter', 14), fg="white")
             appTypeLabel1.pack(side=RIGHT, padx=20)
+            appCount += 1
 
     update_library()
     # #-----Library App Owned Sample 1-----
